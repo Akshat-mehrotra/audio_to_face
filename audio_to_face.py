@@ -1,18 +1,17 @@
-from keras.optimizers import Adam
-from keras.initializers import RandomNormal
-from keras.models import Model, Input
-from keras.layers import Conv2D, Conv2DTranspose, LeakyReLU, Activation, Concatenate, BatchNormalization, Dropout
-from keras.utils.vis_utils import plot_model
-from keras.preprocessing.image import load_img
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.initializers import RandomNormal
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Conv2D, Conv2DTranspose, LeakyReLU, Activation, Concatenate, BatchNormalization, Dropout, Input
+from tensorflow.keras.preprocessing.image import load_img
 
 from os import listdir
 
 from numpy import asarray, ones, zeros
-from numpy.random import randint
+from numpy.random import randint, default_rng
 
 from PIL import Image
 
-from matplotlib import pyplot as plt
+from matplotlib import pyplot
 
 
 INPUT_SHAPE = (256, 256, 3)
@@ -20,7 +19,8 @@ DATA_DIR = 'train'
 
 data = asarray(listdir(DATA_DIR))
 n_data = len(data) - 1
-print(n_data)
+BATCH_IMGS = 50
+
 def discriminator(img_shape):
 	src_img = Input(img_shape)
 	target_img = Input(img_shape)
@@ -58,7 +58,7 @@ def encoder(prev_layer, filters, batchnorm=True):
 	s = Conv2D(filters, (4,4), padding='same', strides=(2,2), kernel_initializer=RandomNormal(stddev=0.02))(prev_layer)
 	if batchnorm:
 		s = BatchNormalization()(s, training=True)
-	s = LeakyReLU(.2)(s)
+	s = Activation('relu')(s)
 	return s
 
 
@@ -67,7 +67,7 @@ def decoder(prev_layer, encoder_skip, filters, dropout=True):
 	s = BatchNormalization()(s, training=True)
 	if dropout:
 		s = Dropout(.2)(s, training=True)
-	s = LeakyReLU(.2)(s)
+	s = Activation('relu')(s)
 	s = Concatenate()([s, encoder_skip])
 	return s
 
@@ -130,6 +130,9 @@ def real_nextsamples(n_samples):
 
 	X_A, X_I = asarray(X_A), asarray(X_I)
 
+	rng = default_rng()
+	rng.shuffle(X_A)
+	rng.shuffle(X_I)
 	X_A = (X_A - 127.5) / 127.5
 	X_I = (X_I - 127.5) / 127.5
 	return X_A, X_I
@@ -159,16 +162,19 @@ def summarise(epoch, gen, loss, n_samples=3):
 		pyplot.axis('off')
 		pyplot.imshow(X_realimgs[i])
 
-	pyplot.savefig(f'epoch {epoch+1}')
+	pyplot.savefig(f'generated/epoch_{epoch+1}')
 	pyplot.close()
 
-	gen.save(f'model_{epoch+1}_{loss}.h5')
+	gen.save(f'models/model_{epoch+1}_{loss}.h5')
 	print(f">Saved model_{epoch+1}_{loss}.h5")
 
 
 
-def train(dis, gen, gan, n_imgs, epochs=100, n_batches=55):
-	imgs_per_batch = int(n_imgs//n_batches)
+def train(dis, gen, gan, n_imgs, epochs=15,imgs_per_batch=None, n_batches=None):
+	if imgs_per_batch:
+		n_batches=int(n_imgs/imgs_per_batch)
+	elif n_batches:
+		imgs_per_batch = int(n_imgs//n_batches)
 	y_real = ones((imgs_per_batch, dis.output_shape[1], dis.output_shape[2], 1))
 	y_fake = zeros((imgs_per_batch, dis.output_shape[1], dis.output_shape[2], 1))
 	for epoch in range(epochs):
@@ -183,11 +189,9 @@ def train(dis, gen, gan, n_imgs, epochs=100, n_batches=55):
 
 			print(f"\tbatch no->{batch+1}")
 		print(f"{epoch+1}: gan->{gan_loss}, dis_fake->{dis_fake_loss}, dis_real->{dis_real_loss}")
-
-		if (epoch+1) % 5 == 0:
-			summarise(epoch, gen, gan_loss)
+		summarise(epoch, gen, gan_loss)
 
 dis = discriminator(INPUT_SHAPE)
 gen = generator(INPUT_SHAPE)
 gan = gan(gen, dis, INPUT_SHAPE)
-train(dis, gen, gan, n_imgs=n_data, n_batches=int(n_data/5))
+train(dis, gen, gan, n_imgs=n_data, imgs_per_batch=BATCH_IMGS)

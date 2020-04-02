@@ -6,8 +6,8 @@ import os
 import pandas as pd
 import shutil
 
-AUDIO_SOURCE = "G:/sounds/rebuilt.vox1_dev_wav_partaa/wav"
-IMAGE_SOURCE = "G:/sounds/unzippedFaces"
+AUDIO_SOURCE = "wav"
+IMAGE_SOURCE = "unzippedFaces"
 REPAIR_REQ = True
 
 def create_spectrogram(path,name,dir):
@@ -28,7 +28,6 @@ def create_spectrogram(path,name,dir):
     del name,clip,sample_rate,fig,ax,S
 
 base_dir = os.getcwd()
-test_dir = f"{base_dir}/test"
 train_dir = f"{base_dir}/train"
 
 df = pd.read_csv("vox1_meta.csv", sep='\t')
@@ -36,6 +35,8 @@ df = pd.read_csv("vox1_meta.csv", sep='\t')
 def create_data(target_dir):
     n = 0
     for folder in os.listdir(AUDIO_SOURCE):
+        if folder == 'source':
+            continue
         speaker = df[df['VoxCeleb1 ID'] == folder]['VGGFace1 ID'].values[0]
 
         for subfolder in os.listdir(f'{AUDIO_SOURCE}/{folder}'):
